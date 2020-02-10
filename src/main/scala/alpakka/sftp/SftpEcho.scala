@@ -17,12 +17,13 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier
 import net.schmizz.sshj.xfer.FileSystemFile
 import org.apache.commons.lang3.exception.ExceptionUtils
 import org.slf4j.{Logger, LoggerFactory}
+import org.testcontainers.containers.DockerComposeContainer
+import org.testcontainers.containers.wait.strategy.Wait
 
 import scala.collection.immutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
-
 
 /**
   * Implement an upload/download echo flow for the happy path,
@@ -48,6 +49,24 @@ object SftpEcho extends App {
   val logger: Logger = LoggerFactory.getLogger(this.getClass)
   implicit val system = ActorSystem("SftpEcho")
   implicit val executionContext = system.dispatcher
+
+
+  class SDockerComposeContainer(f: File) extends DockerComposeContainer[SDockerComposeContainer](f)
+
+  val environment: SDockerComposeContainer  =
+    new SDockerComposeContainer(new File("docker/docker-compose.yml"))
+      .withExposedService("atmoz_sftp_1", 2222)
+        .waitingFor("atmoz_sftp_1", Wait.forListeningPort())
+
+  //TODO Can not reach exposed port, but is reachable via nc
+  //https://www.testcontainers.org/features/networking/
+  //https://docs.docker.com/compose/networking/
+
+  //Testcontainers.exposeHostPorts(2222)
+
+  environment.start()
+
+  val myPort = environment.getServicePort("atmoz_sftp_1", 2222)
 
   //we need a sub folder due to permissions set on on the atmoz_sftp docker image
   val sftpRootDir = "echo"
