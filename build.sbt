@@ -38,6 +38,7 @@ libraryDependencies ++= Seq(
   //"com.lightbend.akka" %% "akka-stream-alpakka-s3" % alpakkaVersion,
   "com.lightbend.akka" %% "akka-stream-alpakka-ftp" % alpakkaVersion,
   "com.lightbend.akka" %% "akka-stream-alpakka-elasticsearch" % alpakkaVersion,
+  "com.lightbend.akka" %% "akka-stream-alpakka-slick" % alpakkaVersion,
 
   "com.github.krasserm" %% "streamz-camel-akka" % streamzVersion,
   "org.apache.camel" % "camel-netty4" % camelVersion,

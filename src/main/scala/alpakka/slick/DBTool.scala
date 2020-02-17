@@ -4,9 +4,9 @@ import java.nio.file.Paths
 
 import akka.Done
 import akka.actor.ActorSystem
+import akka.stream.IOResult
 import akka.stream.alpakka.slick.scaladsl._
 import akka.stream.scaladsl._
-import akka.stream.{ActorMaterializer, IOResult}
 import akka.util.ByteString
 import slick.jdbc.GetResult
 
@@ -15,7 +15,6 @@ import scala.concurrent.Future
 object DBTool {
   implicit val system = ActorSystem("DBTool")
   implicit val executionContext = system.dispatcher
-  implicit val materializer = ActorMaterializer()
   implicit val session = SlickSession.forConfig("slick-mysql")
 
   def main(args: Array[String]): Unit = {
