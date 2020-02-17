@@ -1,44 +1,66 @@
+[![Build Status](https://travis-ci.org/pbernet/akka_streams_tutorial.svg?branch=master)](https://travis-ci.org/pbernet/akka_streams_tutorial)
 # Akka streams tutorial #
 
-This is a collection of simple runnable self contained examples from various akka streams docs, tutorials and blogs. 
-Two more complex examples are worth mentioning:
+"It works!" a colleague used to shout across the office when another proof of concept was running it's first few hundred meters along the happy path, well aware that the real work started right there.
+This repo contains a collection of runnable and self contained examples from various akka streams docs, tutorials, blogs and postings to provide you with exactly this feeling.
+See the class comment on how to run each example. Three more complex examples are described below:
+* HTTP file download with local cache
 * Windturbine Example
 * Apache Kafka WordCount
 
+These three examples all deal with some kind of shared state. 
 
-## Windturbine Example in pkg _sample.stream_actor_ ##
+Another group of examples are the *Echo classes, which implement roundtrips eg in [HttpFileEcho.scala](src/main/scala/akkahttp/HttpFileEcho.scala) a HTTP file upload/download roundtrip.
+
+Remarks:
+* Most examples are throttled so you can see from the console output what is happening.
+* Some examples deliberately throw RuntimeExceptions, so you can observe recovery.
+* No unit tests, sorry.
+
+## HTTP file download with local cache ##
+Use case:
+  * Process a stream of incoming messages with reoccurring TRACE_ID
+  * For the first message: download a .zip file from a _FileServer_ and add TRACE_ID->Path to the local cache
+  * For subsequent messages with the same TRACE_ID: fetch file from cache to avoid duplicate downloads per TRACE_ID
+
+| Class                     | Description     |
+| -------------------       |-----------------|
+| [FileServer.scala](src/main/scala/alpakka/env/FileServer.scala)|Local HTTP FileServer for non-idempotent file download simulation|
+| [LocalFileCacheCaffeine.scala](src/main/scala/sample/stream_shared_state/LocalFileCacheCaffeine.scala)|Akka streams flow, which uses a local file cache implemented with [caffeine](https://github.com/ben-manes/caffeine "") to share state|
+
+
+## Windturbine Example ##
 Working sample from the [blog series 1-4](http://blog.colinbreck.com/integrating-akka-streams-and-akka-actors-part-iv/ "Blog 4")
- from Colin Breck where Actors are used to model shared mutable state, life-cycle management and fault-tolerance in combination with akka streams.
+ from Colin Breck where an Actor is used to model shared state, life-cycle management and fault-tolerance in combination with akka-streams.
  Colin Breck explains these concepts and more in the 2017 Reactive Summit talk [
 Islands in the Stream: Integrating Akka Streams and Akka Actors
 ](https://www.youtube.com/watch?v=qaiwalDyayA&list=PLKKQHTLcxDVayICsjpaPeno6aAPMCCZIz&index=4)
 
 | Class                     | Description     |
 | -------------------       |-----------------|
-| SimulateWindTurbines.scala| Starts n clients|
-| WindTurbineServer.scala   | Start server    |
+| [SimulateWindTurbines.scala](src/main/scala/sample/stream_actor/SimulateWindTurbines.scala)| Starts n clients which feed measurements to the server|
+| [WindTurbineServer.scala](src/main/scala/sample/stream_actor/WindTurbineServer.scala)| Start server which a accumulates measurements|
 
- The clients communicate via websockets with the server. After a restart of SimulateWindTurbines the clients are able to resume. 
- Shutting down the WindTurbineServer results in reporting all of the clients that the server is not reachable.
- After the WindTurbineServer is restarted the clients are able to resume. 
- There is not persistence yet in this example, so the processing just continuous.
+ The clients communicate via websockets with the _WindTurbineServer_. After a restart of _SimulateWindTurbines_ the clients are able to resume. 
+ Shutting down the _WindTurbineServer_ results in reporting the clients that the server is not reachable.
+ After restarting _WindTurbineServer_ the clients are able to resume. Since there is no persistence, the processing just continuous.
 
 
-## Apache Kafka WordCount in pkg _kafka_ ##
-The ubiquitous word count. Start the classes in the order below and watch the console output.
+## Apache Kafka WordCount ##
+The ubiquitous word count. A message count is done as well (A message is a sequence of words).
+Start the classes in the order below and watch the console output.
 
 | Class               | Description      |
 | ------------------- |-----------------|
-| KafkaServer.scala| Standalone Kafka/Zookeeper. Alternative: [Setup Kafka server manually](https://kafka.apache.org/quickstart "Instruction")  
-| WordCountProducer.scala   | Client which feeds words to topic _wordcount-input_. Implemented with [akka-streams-kafka](https://doc.akka.io/docs/akka-stream-kafka/current/home.html "Doc")      |
-| WordCountKStreams.java   | Client to process stateful word and news count. Implemented with the magic [Kafka Streams DSL](https://kafka.apache.org/documentation/streams "Doc")        |
-| WordCountConsumer.scala   | Client which consumes aggregated results from topic _wordcount-output_. Implemented with [akka-streams-kafka](https://doc.akka.io/docs/akka-stream-kafka/current/home.html "Doc")    |
-| DeleteTopicUtil.scala   | Utility to reset the offset    | 
+| [KafkaServer.scala](src/main/scala/kafka/KafkaServer.scala)| Standalone Kafka/Zookeeper.  
+| [WordCountProducer.scala](src/main/scala/kafka/WordCountProducer.scala)| Client which feeds words to topic _wordcount-input_. Implemented with [akka-streams-kafka](https://doc.akka.io/docs/akka-stream-kafka/current/home.html "Doc")      |
+| [WordCountKStreams.scala](src/main/java/kafka/WordCountKStreams.java)| Client which does word and message count. Implemented with [Kafka Streams DSL](https://kafka.apache.org/documentation/streams "Doc")        |
+| [WordCountConsumer.scala](src/main/scala/kafka/WordCountConsumer.scala)| Client which consumes aggregated results from topic _wordcount-output_ and _messagecount-output_. Implemented with [akka-streams-kafka](https://doc.akka.io/docs/akka-stream-kafka/current/home.html "Doc")    |
+| [DeleteTopicUtil.scala](src/main/scala/kafka/DeleteTopicUtil.scala)| Utility to reset the offset    | 
 
-The clients communicate via a binary protocol over TCP with the server. Behaviour after restart:
-* WordCountProducer resumes feeding words
-* WordCountKStreams resumes processing words at the stored offset and thus keeping the state
-* WordCountConsumer resumes consuming at the stored offset
+_WordCountKStreams.java_ and _WordCountConsumer.scala_ should yield the same results.
 
-Shutting down the KafkaServer results in reporting all of the clients that the Kafka Broker is not available anymore.
-After the KafkaServer is restarted the clients are able to resume.
+The clients communicate via a binary protocol over TCP with the _KafkaServer_. After restarting _KafkaServer_:
+* _WordCountProducer_ resumes feeding words
+* _WordCountKStreams_ resumes at the stored offset
+* _WordCountConsumer_ resumes at the stored offset

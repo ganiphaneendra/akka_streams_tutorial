@@ -2,10 +2,10 @@ package kafka
 
 import akka.Done
 import akka.actor.{ActorSystem, Props}
-import akka.kafka.scaladsl.Consumer
-import akka.kafka.{ConsumerSettings, Subscriptions}
-import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Sink
+import akka.kafka.scaladsl.Consumer.DrainingControl
+import akka.kafka.scaladsl.{Committer, Consumer}
+import akka.kafka.{CommitterSettings, ConsumerSettings, Subscriptions}
+import akka.stream.scaladsl.Keep
 import akka.util.Timeout
 import kafka.TotalFake.{IncrementMessage, IncrementWord}
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -15,19 +15,20 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 /**
-  * Consumers A.1 and A.2 (within the same word count consumer group) consume half of the partitions each
-  * Consumer B as a single consumer for all the partitions in message count
+  * Consumers W.1 and W.2 consume half of the partitions each within the wordcount consumer group
+  * Consumer M is a single consumer for all the partitions in the messagecount consumer group
   *
   * Use the offset storage in Kafka:
-  * http://doc.akka.io/docs/akka-stream-kafka/current/consumer.html#offset-storage-in-kafka
+  * https://doc.akka.io/docs/akka-stream-kafka/current/consumer.html#offset-storage-in-kafka-committing
   *
   */
 object WordCountConsumer extends App {
-  implicit val system = ActorSystem()
+  implicit val system = ActorSystem("WordCountConsumer")
   implicit val ec = system.dispatcher
-  implicit val materializer = ActorMaterializer()
 
   val total = system.actorOf(Props[TotalFake], "totalFake")
+
+  val committerSettings = CommitterSettings(system)
 
   def createConsumerSettings(group: String): ConsumerSettings[String, java.lang.Long] = {
     ConsumerSettings(system, new StringDeserializer , new LongDeserializer)
@@ -35,25 +36,23 @@ object WordCountConsumer extends App {
       .withGroupId(group)
       //Define consumer behavior upon starting to read a partition for which it does not have a committed offset or if the committed offset it has is invalid
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-      .withWakeupTimeout(10.seconds)
-      .withMaxWakeups(10)
   }
 
   def createAndRunConsumerWordCount(id: String) = {
     Consumer.committableSource(createConsumerSettings("wordcount consumer group"), Subscriptions.topics("wordcount-output"))
       .mapAsync(1) { msg =>
         //println(s"$id - Offset: ${msg.record.offset()} - Partition: ${msg.record.partition()} Consume msg with key: ${msg.record.key()} and value: ${msg.record.value()}")
-        if (msg.record.key() == "fakenews") {
+        if (msg.record.key().equalsIgnoreCase("fakeNews")) { //WTF WordCountProducer.fakeNewsKeyword does not work
           import akka.pattern.ask
           implicit val askTimeout: Timeout = Timeout(30.seconds)
           (total ? IncrementWord(msg.record.value.toInt, id)).mapTo[Done]
         }
         Future(msg)
+          .map(_ => msg.committableOffset)
       }
-      .mapAsync(1) { msg =>
-        msg.committableOffset.commitScaladsl() //commit after processing gives an “at-least once delivery”
-      }
-      .runWith(Sink.ignore)
+      .toMat(Committer.sink(committerSettings))(Keep.both)
+      .mapMaterializedValue(DrainingControl.apply)
+      .run()
   }
 
   def createAndRunConsumerMessageCount(id: String) = {
@@ -64,16 +63,16 @@ object WordCountConsumer extends App {
         implicit val askTimeout: Timeout = Timeout(30.seconds)
         (total ? IncrementMessage(msg.record.value.toInt, id)).mapTo[Done]
         Future(msg)
+          .map(_ => msg.committableOffset)
       }
-      .mapAsync(1) { msg =>
-        msg.committableOffset.commitScaladsl() //commit after processing gives an “at-least once delivery”
-      }
-      .runWith(Sink.ignore)
+      .toMat(Committer.sink(committerSettings))(Keep.both)
+      .mapMaterializedValue(DrainingControl.apply)
+      .run()
   }
 
-  createAndRunConsumerWordCount("A.1")
-  createAndRunConsumerWordCount("A.2")
-  createAndRunConsumerMessageCount("B")
+  createAndRunConsumerWordCount("W.1")
+  createAndRunConsumerWordCount("W.2")
+  createAndRunConsumerMessageCount("M")
 
 
   sys.addShutdownHook{

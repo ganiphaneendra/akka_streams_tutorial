@@ -1,14 +1,14 @@
 package kafka
 
 import java.util
-import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
+import java.util.concurrent.ThreadLocalRandom
 
 import akka.actor.ActorSystem
 import akka.kafka.ProducerMessage.Message
 import akka.kafka.ProducerSettings
 import akka.kafka.scaladsl.Producer
+import akka.stream.ThrottleMode
 import akka.stream.scaladsl.{Keep, Sink, Source}
-import akka.stream.{ActorMaterializer, ThrottleMode}
 import akka.{Done, NotUsed}
 import org.apache.kafka.clients.producer.{Partitioner, ProducerRecord}
 import org.apache.kafka.common.errors.{NetworkException, UnknownTopicOrPartitionException}
@@ -23,13 +23,14 @@ import scala.concurrent.duration._
   *
   */
 object WordCountProducer extends App {
-  implicit val system = ActorSystem()
+  implicit val system = ActorSystem("WordCountProducer")
   implicit val ec = system.dispatcher
-  implicit val materializer = ActorMaterializer()
 
   val bootstrapServers = "localhost:9092"
 
   val topic = "wordcount-input"
+  val fakeNewsKeyword = "fakeNews"
+
 
   //initial msg in topic, required to create the topic before any consumer subscribes to it
   val InitialMsg = "truth"
@@ -43,7 +44,6 @@ object WordCountProducer extends App {
   def initializeTopic(topic: String): Unit = {
     val producer = producerSettings.createKafkaProducer()
     producer.send(new ProducerRecord(topic, partition0, null: String, InitialMsg))
-    producer.close(60, TimeUnit.SECONDS)
   }
 
   def produce(topic: String, messageMap: Map[Int, String], settings: ProducerSettings[String, String] = producerSettings): Future[Done] = {
@@ -62,7 +62,7 @@ object WordCountProducer extends App {
         Message(recordWithCurrentTimestamp, NotUsed)
       })
       .throttle(100, 100.milli, 10, ThrottleMode.shaping)
-      .viaMat(Producer.flow(settings))(Keep.right)
+      .viaMat(Producer.flexiFlow(settings))(Keep.right)
 
     source.runWith(Sink.ignore)
   }
@@ -73,7 +73,7 @@ object WordCountProducer extends App {
   }
 
   initializeTopic(topic)
-  val randomMap: Map[Int, String] = TextMessageGenerator.genRandTextWithKeyword(1000,1000, 3, 5, 5, 10, "fakeNews").split("([!?.])").toList.zipWithIndex.toMap.map(_.swap)
+  val randomMap: Map[Int, String] = TextMessageGenerator.genRandTextWithKeyword(1000,1000, 3, 5, 5, 10, WordCountProducer.fakeNewsKeyword).split("([!?.])").toList.zipWithIndex.toMap.map(_.swap)
   val doneFuture = produce(topic, randomMap)
 
   doneFuture.recover{
@@ -108,7 +108,7 @@ class CustomPartitioner extends Partitioner {
 
     //println("CustomPartitioner received key: " + key + " and value: " + value)
 
-    if (value.toString.contains("fakeNews")) {
+    if (value.toString.contains(WordCountProducer.fakeNewsKeyword)) {
       //println("CustomPartitioner send message: " + value + " to fakeNewsPartition")
       fakeNewsPartition
     }

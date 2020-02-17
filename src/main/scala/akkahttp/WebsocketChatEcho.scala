@@ -1,45 +1,37 @@
 package akkahttp
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.server.Directives._
-import akka.stream.ActorMaterializer
+import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.{BroadcastHub, Flow, Keep, MergeHub, Sink, Source}
 import akka.{Done, NotUsed}
-import akkahttp.WebsocketEcho.{helloSource, printSink}
+import akkahttp.WebsocketEcho.handleWebSocketMessages
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
 /**
-  * A simple WebSocket chat system using only Akka Streams with the help of MergeHub Source and BroadcastHub Sink
+  * A simple WebSocket chat system using only akka streams with the help of MergeHub Source and BroadcastHub Sink
   *
   * Shamelessly copied from:
   * https://github.com/calvinlfer/akka-http-streaming-response-examples/blob/master/src/main/scala/com/experiments/calvin/WebsocketStreamsMain.scala
   * Doc:
   * http://doc.akka.io/docs/akka/current/scala/stream/stream-dynamic.html#dynamic-fan-in-and-fan-out-with-mergehub-and-broadcasthub
   */
-object WebsocketChatEcho {
-  implicit val actorSystem = ActorSystem(name = "WebsocketChatEcho")
-  implicit val streamMaterializer = ActorMaterializer()
-  implicit val executionContext = actorSystem.dispatcher
-  val log: LoggingAdapter = actorSystem.log
+object WebsocketChatEcho extends App with ClientCommon {
 
-
-  def main(args: Array[String]) {
-    val (address, port) = ("127.0.0.1", 6000)
-    val maxClients = 10
+    val (address, port) = ("127.0.0.1", 6002)
     server(address, port)
-    for ( a <- 1 to maxClients) clientWebSocketClientFlow(address, port)  //Without compression messages in stdout: numberOfMsg * maxClients^2
-  }
+    browserClient()
+    val clients = List("Bob", "Alice")
+    clients.par.foreach(clientname => clientWebSocketClientFlow(clientname, address, port))
 
   private def server(address: String, port: Int) = {
 
     /*
-  many clients -> Merge Hub -> Broadcast Hub -> many clients
+  clients -> Merge Hub -> Broadcast Hub -> clients
   Visually
                                                                                                          Akka Streams Flow
                   ________________________________________________________________________________________________________________________________________________________________________________________
@@ -62,7 +54,7 @@ object WebsocketChatEcho {
 
     val (chatSink: Sink[String, NotUsed], chatSource: Source[String, NotUsed]) =
       MergeHub.source[String]
-        .map { elem => println(s"Server received after MergeHub: $elem"); elem}
+        //.wireTap(elem => println(s"Server received after MergeHub: $elem"))
         .via(sampleProcessing)
         .toMat(BroadcastHub.sink[String])(Keep.both).run()
 
@@ -76,7 +68,7 @@ object WebsocketChatEcho {
       }
     }
       .via(Flow.fromSinkAndSource(chatSink, chatSource))
-      //Add compression
+      //Add compression, without compression messages in stdout: numberOfMsg * maxClients^2
       .groupedWithin(10, 2.second)
       .map { eachSeq =>
         println(s"Compressed ${eachSeq.size} messages within 2 seconds")
@@ -84,24 +76,34 @@ object WebsocketChatEcho {
       }
       .map[Message](string => TextMessage.Strict("Hello " + string + "!"))
 
-    def wsChatStreamsOnlyRoute =
+    def wsClientRoute: Route =
       path("echochat") {
         handleWebSocketMessages(echoFlow)
       }
 
-    val bindingFuture = Http().bindAndHandle(wsChatStreamsOnlyRoute, address, port)
+    //The browser client has a different route but hooks into the same flow
+    def wsBrowserClientRoute: Route =
+      path("echo") {
+        handleWebSocketMessages(echoFlow)
+      }
+
+    def routes: Route = {
+      wsClientRoute ~ wsBrowserClientRoute
+    }
+
+    val bindingFuture = Http().bindAndHandle(routes, address, port)
     bindingFuture
       .map(_.localAddress)
       .map(addr => println(s"Server bound to: $addr"))
   }
 
-  private def clientWebSocketClientFlow(address: String, port: Int) = {
+  private def clientWebSocketClientFlow(clientname: String, address: String, port: Int) = {
 
     // flow to use (note: not re-usable!)
     val webSocketFlow: Flow[Message, Message, Future[WebSocketUpgradeResponse]] = Http().webSocketClientFlow(WebSocketRequest(s"ws://$address:$port/echochat"))
 
     val (upgradeResponse, closed) =
-      helloSource
+      namedSource(clientname)
         .viaMat(webSocketFlow)(Keep.right) // keep the materialized Future[WebSocketUpgradeResponse]
         .toMat(printSink)(Keep.both) // also keep the Future[Done]
         .run()
@@ -116,8 +118,7 @@ object WebsocketChatEcho {
       }
     }
 
-    //TODO be more verbose and check disconnect
-    connected.onComplete(println)
-    closed.foreach(_ => println("closed"))
+    connected.onComplete(_ => println("client connected"))
+    closed.foreach(_ => println("client closed"))
   }
 }

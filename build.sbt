@@ -2,52 +2,75 @@ name := "akka-streams-tutorial"
 
 version := "1.0"
 
-scalaVersion := "2.12.4"
+scalaVersion := "2.12.10"
+
+val akkaVersion = "2.6.1"
+val akkaHTTPVersion = "10.1.11"
+val alpakkaVersion = "2.0.0-M2"
+val akkaStreamKafkaVersion = "2.0.1"
+val kafkaVersion = "2.4.0"
+val activemqVersion =  "5.15.11"
+val streamzVersion = "0.11-RC1"
+val camelVersion = "2.24.2"
+val testContainersVersion = "1.12.5"
 
 libraryDependencies ++= Seq(
-  "com.typesafe.akka" %% "akka-stream" % "2.5.18",
-  "com.typesafe.akka" %% "akka-actor" % "2.5.18",
-  "com.typesafe.akka" %% "akka-actor-typed" % "2.5.18",
-  "com.typesafe.akka" %% "akka-slf4j" % "2.5.18",
+  "com.typesafe.akka" %% "akka-stream" % akkaVersion,
+  "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+  "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
+  "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
   
-  "com.typesafe.akka" %% "akka-http" % "10.1.5",
+  "com.typesafe.akka" %% "akka-http" % akkaHTTPVersion,
+  "com.typesafe.akka" %% "akka-http-spray-json" % akkaHTTPVersion,
 
-  "javax.jms" % "jms" % "1.1",
-  "org.apache.activemq" % "activemq-client" % "5.15.7",
-  "org.apache.activemq" % "activemq-broker" % "5.15.7",
-  "com.lightbend.akka" %% "akka-stream-alpakka-jms" % "1.0-M1",
-  "com.lightbend.akka" %% "akka-stream-alpakka-slick" % "1.0-M1",
-  "mysql" % "mysql-connector-java" % "8.0.11",
+  "org.apache.geronimo.specs" % "geronimo-jms_1.1_spec" % "1.1.1",
+  "org.apache.activemq" % "activemq-client" % activemqVersion,
+  "org.apache.activemq" % "activemq-broker" % activemqVersion,
+  "com.lightbend.akka" %% "akka-stream-alpakka-jms" % alpakkaVersion,
 
-  "com.typesafe.akka" %% "akka-stream-kafka" % "1.0-M1",
-  "org.apache.kafka" %% "kafka" % "2.0.0",
-  "org.apache.kafka" % "kafka-streams" % "2.0.0",
+  "com.typesafe.akka" %% "akka-stream-kafka" % akkaStreamKafkaVersion,
+  "org.apache.kafka" %% "kafka" % kafkaVersion,
+  "org.apache.kafka" % "kafka-streams" % kafkaVersion,
 
-  "com.lightbend.akka" %% "akka-stream-alpakka-sse" % "1.0-M1",
-  "com.lightbend.akka" %% "akka-stream-alpakka-file" % "1.0-M1",
-  "com.lightbend.akka" %% "akka-stream-alpakka-xml" % "1.0-M1",
-  
-  "org.scalatest" %% "scalatest" % "3.0.1" % "test",
-  "com.typesafe.akka" %% "akka-testkit" % "2.5.18"  % "test",
-  "com.typesafe.play" %% "play" % "2.6.10",
-  "com.geteventstore" %% "eventstore-client" % "4.1.1",
-  "com.github.andyglow" %% "websocket-scala-client" % "0.2.4",
-  "com.fasterxml.jackson.core" % "jackson-databind" % "2.8.10",
-  "org.apache.httpcomponents" % "httpclient" % "4.5.6",
-  "commons-io" % "commons-io" % "2.5",
+  "com.lightbend.akka" %% "akka-stream-alpakka-sse" % alpakkaVersion,
+  "com.lightbend.akka" %% "akka-stream-alpakka-file" % alpakkaVersion,
+  "com.lightbend.akka" %% "akka-stream-alpakka-xml" % alpakkaVersion,
+  //"com.lightbend.akka" %% "akka-stream-alpakka-s3" % alpakkaVersion,
+  "com.lightbend.akka" %% "akka-stream-alpakka-ftp" % alpakkaVersion,
+  "com.lightbend.akka" %% "akka-stream-alpakka-elasticsearch" % alpakkaVersion,
+
+  "com.github.krasserm" %% "streamz-camel-akka" % streamzVersion,
+  "org.apache.camel" % "camel-netty4" % camelVersion,
+  "org.apache.camel" % "camel-jetty" % camelVersion,
+  "org.apache.camel" % "camel-core" % camelVersion,
+  "org.apache.camel" % "camel-stream" % camelVersion,
+
+  "com.typesafe.play" %% "play" % "2.8.0",
+  "com.fasterxml.jackson.core" % "jackson-databind" % "2.9.10.1",
+  "org.apache.httpcomponents" % "httpclient" % "4.5.9",
+  "commons-io" % "commons-io" % "2.6",
+  "org.apache.commons" % "commons-lang3" % "3.9",
   "org.apache.avro" % "avro" % "1.8.2",
-  "com.twitter" %% "bijection-avro" % "0.9.6"
+  "com.twitter" %% "bijection-avro" % "0.9.6",
+  "com.github.blemale" %% "scaffeine" % "3.0.0" % "compile",
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
+
+  "org.scalatest" %% "scalatest" % "3.0.6" % "test",
+  "com.typesafe.akka" %% "akka-testkit" % akkaVersion  % "test",
+  "org.testcontainers" % "testcontainers" % testContainersVersion,
+  "org.testcontainers" % "elasticsearch" % testContainersVersion,
+  "junit" % "junit" % "4.13-beta-1"
 )
 
-resolvers ++= Seq(
-  "repository.jboss.org-public" at "https://repository.jboss.org/nexus/content/groups/public",
-  "Mvnrepository" at "https://mvnrepository.com/artifact"
-)
+resolvers += "streamz at bintray" at "https://dl.bintray.com/streamz/maven"
+resolvers += "repository.jboss.org-public" at "https://repository.jboss.org/nexus/content/groups/public"
 
 //see: https://github.com/sbt/sbt/issues/3618
 val workaround = {
   sys.props += "packaging.type" -> "jar"
   ()
 }
+
+scalacOptions += "-deprecation"
 
 fork in run := true

@@ -6,8 +6,7 @@ import akka.Done
 import akka.actor.{ActorSystem, Props}
 import akka.kafka.ConsumerMessage.CommittableOffsetBatch
 import akka.kafka.scaladsl.Consumer
-import akka.kafka.{ConsumerMessage, ConsumerSettings, Subscriptions}
-import akka.stream.ActorMaterializer
+import akka.kafka.{CommitterSettings, ConsumerMessage, ConsumerSettings, Subscriptions}
 import akka.stream.scaladsl.Sink
 import akka.util.Timeout
 import kafka.TotalFake.IncrementWord
@@ -21,17 +20,19 @@ import scala.concurrent.duration._
   * http://doc.akka.io/docs/akka-stream-kafka/current/consumer.html#source-per-partition
   *
   * This consumer consumes WordCounts only
-  * TODO Find out what the benefits are compared to WordCountConsumer
+  * TODO Try to understand the documented benefits:
   *  * Supports tracking the automatic partition assignment from Kafka.
   *  * When topic-partition is assigned to a consumer this source will emit tuple with assigned topic-partition and a corresponding source.
   *  * When topic-partition is revoked then corresponding source completes.
+  * compared to WordCountConsumer
   */
 object WordCountConsumerPartitionedSource extends App {
-  implicit val system = ActorSystem()
+  implicit val system = ActorSystem("WordCountConsumerPartitionedSource")
   implicit val ec = system.dispatcher
-  implicit val materializer = ActorMaterializer()
 
   val total = system.actorOf(Props[TotalFake], "totalFake")
+
+  val committerSettings = CommitterSettings(system)
 
   def createConsumerSettings(group: String): ConsumerSettings[String, java.lang.Long] = {
     ConsumerSettings(system, new StringDeserializer , new LongDeserializer)
@@ -39,8 +40,6 @@ object WordCountConsumerPartitionedSource extends App {
       .withGroupId(group)
       //Define consumer behavior upon starting to read a partition for which it does not have a committed offset or if the committed offset it has is invalid
       .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-      .withWakeupTimeout(10.seconds)
-      .withMaxWakeups(10)
   }
 
   def createAndRunConsumerWordCount(id: String) = {
@@ -49,32 +48,32 @@ object WordCountConsumerPartitionedSource extends App {
     Consumer.committablePartitionedSource(createConsumerSettings("wordcount consumer group"), Subscriptions.topics("wordcount-output"))
       .flatMapMerge(2, _._2)
       .batch(max = 20, first => CommittableOffsetBatch.empty.updated(first.committableOffset)) { (batch: CommittableOffsetBatch, msg: ConsumerMessage.CommittableMessage[String, lang.Long]) =>
-        println(s"$id - Offset: ${msg.record.offset()} - Partition: ${msg.record.partition()} Consume msg with key: ${msg.record.key()} and value: ${msg.record.value()}")
-        if (msg.record.key() == "fakenews") {
+        //println(s"$id - Offset: ${msg.record.offset()} - Partition: ${msg.record.partition()} Consume msg with key: ${msg.record.key()} and value: ${msg.record.value()}")
+        if (msg.record.key().equalsIgnoreCase("fakeNews")) { //WTF WordCountProducer.fakeNewsKeyword does not work
           import akka.pattern.ask
           implicit val askTimeout = Timeout(30.seconds)
         (total ? IncrementWord(msg.record.value.toInt, id)).mapTo[Done]
       }
       batch.updated(msg.committableOffset)
       }
+      //For unknown reasons commitScaladsl can not be replaced with DrainingControl construct...
       .mapAsync(3)(_.commitScaladsl())
       .runWith(Sink.ignore)
   }
-
-  //One consumer for each partition is needed for this to work
-  createAndRunConsumerWordCount("A")
-  createAndRunConsumerWordCount("B")
-  createAndRunConsumerWordCount("C")
-  createAndRunConsumerWordCount("D")
-  createAndRunConsumerWordCount("E")
-  createAndRunConsumerWordCount("F")
-  createAndRunConsumerWordCount("G")
-  createAndRunConsumerWordCount("H")
-  createAndRunConsumerWordCount("I")
-  createAndRunConsumerWordCount("K")
 
   sys.addShutdownHook{
     println("Got shutdown cmd from shell, about to shutdown...")
     system.terminate()
   }
+
+  createAndRunConsumerWordCount("W.1")
+  createAndRunConsumerWordCount("W.2")
+  createAndRunConsumerWordCount("W.3")
+  createAndRunConsumerWordCount("W.4")
+  createAndRunConsumerWordCount("W.5")
+  createAndRunConsumerWordCount("W.6")
+  createAndRunConsumerWordCount("W.7")
+  createAndRunConsumerWordCount("W.8")
+  createAndRunConsumerWordCount("W.9")
+  createAndRunConsumerWordCount("W.10")
 }

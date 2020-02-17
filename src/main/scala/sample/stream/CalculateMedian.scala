@@ -3,8 +3,8 @@ package sample.stream
 import java.util.concurrent.ThreadLocalRandom
 
 import akka.actor.ActorSystem
+import akka.stream.ThrottleMode
 import akka.stream.scaladsl.Source
-import akka.stream.{ActorMaterializer, ThrottleMode}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -17,10 +17,10 @@ import scala.concurrent.duration._
   * To calculate the "all time median of medians grouped by 5" we would need to store the values (eg in an actor)
   *
   */
+//noinspection LanguageFeature
 object CalculateMedian {
   implicit val system = ActorSystem("CalculateMedian")
   implicit val ec = system.dispatcher
-  implicit val materializer = ActorMaterializer()
 
   def main(args: Array[String]) = {
     val maxRandomNumber = 100

@@ -6,7 +6,7 @@ import kafka.TotalFake.{IncrementMessage, IncrementWord}
 
 /**
   * Keep the state of:
-  *  - WORD count for "fakeNews" keywords
+  *  - WORD count for keyword "fakeNews"
   *  - MESSAGE count for messages which contain the keyword "fakeNews"
   *
   * Note that a message can contain several "fakeNews" keywords
@@ -22,13 +22,13 @@ class TotalFake extends Actor {
 
   override def receive: Receive = {
     case IncrementWord(value, id) =>
-      println(s"$id - WORD count: $value (+ ${value - totalWords})")
+      println(s"$id - WORD count fakeNews: $value (+ ${value - totalWords})")
       totalWords = value
       sender ! Done
 
     case IncrementMessage(value, id) =>
       totalNews += value
-      println(s"$id - MESSAGE count: $totalNews (+ $value)")
+      println(s"$id - MESSAGES count: $totalNews (+ $value)")
       sender ! Done
   }
 }

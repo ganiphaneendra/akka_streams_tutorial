@@ -8,9 +8,7 @@ import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.directives.WebSocketDirectives
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
-import com.github.andyglow.websocket._
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future, Promise}
@@ -19,8 +17,7 @@ import scala.sys.process.Process
 import scala.util.{Failure, Success}
 
 trait ClientCommon {
-  implicit val system = ActorSystem("WebsocketEcho")
-  implicit val materializer = ActorMaterializer()
+  implicit val system = ActorSystem("Websocket")
   implicit val executionContext = system.dispatcher
 
   val printSink: Sink[Message, Future[Done]] =
@@ -32,9 +29,22 @@ trait ClientCommon {
       case BinaryMessage.Streamed(binaryStream) => binaryStream.runWith(Sink.ignore)
     }
 
-  //see https://doc.akka.io/docs/akka-http/10.1.1/client-side/websocket-support.html?language=scala#half-closed-websockets
-  val helloSource = Source(List(TextMessage("world one"), TextMessage("world two")))
-    .concatMat(Source.maybe[Message])(Keep.right)
+  //see https://doc.akka.io/docs/akka-http/10.1.8/client-side/websocket-support.html?language=scala#half-closed-websockets
+  def namedSource(clientname: String) = {
+    Source
+      .tick(1.second, 1.second, "tick")
+      .zipWithIndex
+      .map { case (_, i) => i }
+      .map(i => TextMessage(s"$clientname-$i"))
+      //.take(2)
+      .concatMat(Source.maybe[Message])(Keep.right)
+  }
+
+  def browserClient() = {
+    val os = System.getProperty("os.name").toLowerCase
+    if (os == "mac os x") Process("open ./src/main/resources/WebsocketEcho.html").!
+  }
+
 }
 
 /**
@@ -50,9 +60,9 @@ object WebsocketEcho extends App with WebSocketDirectives with ClientCommon {
   val (address, port) = ("127.0.0.1", 6002)
   server(address, port)
   browserClient()
-  (1 to 2).par.foreach(each => nettyClient(each, address, port))
-  (1 to 2).par.foreach(each => singleWebSocketRequestClient(each, address, port))
-  (1 to 2).par.foreach(each => webSocketClientFlowClient(each, address, port))
+  val maxClients = 2
+  (1 to maxClients).par.foreach(each => singleWebSocketRequestClient(each, address, port))
+  (1 to maxClients).par.foreach(each => webSocketClientFlowClient(each, address, port))
 
   def server(address: String, port: Int) = {
 
@@ -89,32 +99,12 @@ object WebsocketEcho extends App with WebSocketDirectives with ClientCommon {
     }
   }
 
-  private def browserClient() = {
-    val os = System.getProperty("os.name").toLowerCase
-    if (os == "mac os x") Process("open ./src/main/resources/WebsocketEcho.html").!
-  }
-
-
-  def nettyClient(id: Int, address: String, port: Int) = {
-
-    // see https://github.com/andyglow/websocket-scala-client
-    val cli = WebsocketClient[String](s"ws://$address:$port/echo") {
-      case str => println(s"Client: $id nettyClient received String: $str")
-    }
-    val ws = cli.open()
-    ws ! "world one"
-    ws ! "world two"
-    Thread.sleep(5000)
-    val done = cli.shutdownAsync
-    done.onComplete(closed => println(s"Client: $id nettyClient closed: $closed"))
-  }
-
   def singleWebSocketRequestClient(id: Int, address: String, port: Int) = {
 
     val webSocketNonReusableFlow: Flow[Message, Message, Promise[Option[Message]]] =
       Flow.fromSinkAndSourceMat(
         printSink,
-        helloSource)(Keep.right)
+        namedSource(id.toString))(Keep.right)
 
     val (upgradeResponse: Future[WebSocketUpgradeResponse], closed: Promise[Option[Message]]) =
       Http().singleWebSocketRequest(WebSocketRequest(s"ws://$address:$port/echo"), webSocketNonReusableFlow)
@@ -131,7 +121,7 @@ object WebsocketEcho extends App with WebSocketDirectives with ClientCommon {
     val webSocketNonReusableFlow: Flow[Message, Message, Future[WebSocketUpgradeResponse]] = Http().webSocketClientFlow(WebSocketRequest(s"ws://$address:$port/echo"))
 
     val (upgradeResponse: Future[WebSocketUpgradeResponse], closed: Future[Done]) =
-      helloSource
+      namedSource(id.toString)
         .viaMat(webSocketNonReusableFlow)(Keep.right) // keep the materialized Future[WebSocketUpgradeResponse]
         .toMat(printSink)(Keep.both) // also keep the Future[Done]
         .run()

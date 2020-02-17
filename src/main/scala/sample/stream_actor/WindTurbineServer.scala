@@ -7,7 +7,6 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Source}
 import akka.util.Timeout
 import play.api.libs.json._
@@ -33,7 +32,6 @@ object WindTurbineServer {
 
   implicit def executor: ExecutionContext = system.dispatcher
   protected val log = Logging(system.eventStream, "WindTurbineServer-main")
-  protected implicit val materializer: ActorMaterializer = ActorMaterializer()
 
   object Messages  {
 
@@ -73,6 +71,14 @@ object WindTurbineServer {
           case (lastMessage: String, measurements: Seq[MeasurementsContainer]) =>
             import akka.pattern.ask
             implicit val askTimeout = Timeout(30.seconds)
+
+            // Optional: generate Server errors at 1/6 of the time
+            // Clients receive:
+            // akka.http.scaladsl.model.ws.PeerClosedConnectionException: Peer closed connection with code 1011 'internal error'
+            // and are able to recover due to the RestartSource
+            //val time = LocalTime.now()
+            //if (time.getSecond > 50) {println(s"Server RuntimeException at: $time"); throw new RuntimeException("Boom!")}
+
             //only send a single message at a time to the Total actor, backpressure otherwise
             val windSpeeds = measurements.map(each => each.measurements.wind_speed)
             (total ? Increment(measurements.size, average(windSpeeds), measurements.head.id))
@@ -100,11 +106,10 @@ object WindTurbineServer {
       log.info(s"Bound to: ${serverBinding.localAddress} ")
     }.onComplete {
       case Success(value) => log.info("WindTurbineServer started successfully")
-      case Failure(ex) => {
+      case Failure(ex) =>
         log.error(ex, "Failed to bind to {}:{}!", httpInterface, httpPort)
         Http().shutdownAllConnectionPools()
         system.terminate()
-      }
     }
 
     scala.sys.addShutdownHook {
