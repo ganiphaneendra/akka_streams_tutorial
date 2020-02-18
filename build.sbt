@@ -39,6 +39,7 @@ libraryDependencies ++= Seq(
   "com.lightbend.akka" %% "akka-stream-alpakka-ftp" % alpakkaVersion,
   "com.lightbend.akka" %% "akka-stream-alpakka-elasticsearch" % alpakkaVersion,
   "com.lightbend.akka" %% "akka-stream-alpakka-slick" % alpakkaVersion,
+  "mysql" % "mysql-connector-java" % "8.0.11",
 
   "com.github.krasserm" %% "streamz-camel-akka" % streamzVersion,
   "org.apache.camel" % "camel-netty4" % camelVersion,

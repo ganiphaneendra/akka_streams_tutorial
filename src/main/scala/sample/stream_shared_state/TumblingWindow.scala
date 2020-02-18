@@ -13,10 +13,10 @@ import scala.util.Random
 case class Record(eventTime: Instant, id: Long)
 
 /**
-  * Tumbling window with watermark
+  * Goal:
+  * Tumbling window based on event time, with watermark
   * TODO
-  *  - log dropped records
-  *  - aggregator function
+  *  - What is the cheapest way (using operators) to achieve this?
   *
   */
 object TumblingWindow extends App {
@@ -38,9 +38,9 @@ object TumblingWindow extends App {
   tickSource.zipWithIndex
     .map(each => Record(each._1, each._2))
     //.groupedWithin(10, 5.seconds)
-    //TODO Do does this work as expected? Do the records need to be explicitly marked?
+    //TODO This is a tumbling window based on processing time...
     .groupedWeightedWithin(1L, 5.seconds)({
-      //add heavy weight, if record is within watermark
+      //add heavy weight, if record.eventTime is within watermark
       case Record(eventTime, _) if (eventTime.isBefore(Instant.ofEpochMilli(System.currentTimeMillis() - watermark * 1000L))) => 1L
       //else add low weight
       case _ => 0
