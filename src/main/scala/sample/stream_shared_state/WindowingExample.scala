@@ -18,13 +18,9 @@ import scala.util.{Failure, Random, Success}
   * Doc:
   * https://softwaremill.com/windowing-data-in-akka-streams
   *
-  * The limitation of this approach is the limited maxSubstreams param on the groupBy operator
-  * Thus after a while the processing fails with:
-  * Cannot open a new substream as there are too many substreams open
+  * Adapted to work as  tumbling window by:
+  * setting WindowStep to WindowLength
   *
-  * Probably Apache Flink is more suited for stateful stream processing - see:
-  * https://ci.apache.org/projects/flink/flink-docs-release-1.3/concepts/programming-model.html#windows
-  * https://flink.apache.org/news/2015/12/04/Introducing-windows.html
   */
 object WindowingExample {
   implicit val system = ActorSystem("WindowingExample")
@@ -42,6 +38,7 @@ object WindowingExample {
         val delay = random.nextInt(8)
         MyEvent(now - delay * 1000L)
       }
+      .wireTap(event => println(s"$event"))
       .statefulMapConcat { () =>
         val generator = new CommandGenerator()
         ev => generator.forEvent(ev)
@@ -76,12 +73,15 @@ object WindowingExample {
 
 
 
-  case class MyEvent(timestamp: Long)
+  case class MyEvent(timestamp: Long) {
+    override def toString =
+      s"Event: ${tsToString(timestamp)}"
+  }
 
   type Window = (Long, Long)
   object Window {
     val WindowLength    = 10.seconds.toMillis
-    val WindowStep      =  1.second .toMillis
+    val WindowStep      =  10.second .toMillis
     val WindowsPerEvent = (WindowLength / WindowStep).toInt
 
     def windowsFor(ts: Long): Set[Window] = {
@@ -116,6 +116,7 @@ object WindowingExample {
 
         val closeCommands = openWindows.flatMap { ow =>
           if (!eventWindows.contains(ow) && ow._2 < watermark) {
+            println(s"Close open window: $ow")
             openWindows.remove(ow)
             Some(CloseWindow(ow))
           } else None
@@ -123,6 +124,7 @@ object WindowingExample {
 
         val openCommands = eventWindows.flatMap { w =>
           if (!openWindows.contains(w)) {
+            println(s"Open new window: $w")
             openWindows.add(w)
             Some(OpenWindow(w))
           } else None
