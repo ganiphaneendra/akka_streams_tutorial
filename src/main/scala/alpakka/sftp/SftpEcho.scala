@@ -32,17 +32,18 @@ import scala.util.{Failure, Success}
   *  - Start the docker SFTP server from: /docker/docker-compose.yml
   *    eg by cmd line: docker-compose up -d atmoz_sftp
   *
-  * Reproducer to show these issues:
-  *  - Method [[SftpEcho.createFolders]] does not work. Workaround: [[SftpEcho.createFoldersNative]]
-  *  - Method [[SftpEcho.processAndMove]] hangs after 30 elements. [[SftpEcho.processAndMoveVerbose]]
+  * Reproducer to show this issue with "2.0.0-RC1"
+  *  - Method [[SftpEcho.processAndMove]] hangs after 1st element. [[SftpEcho.processAndMoveVerbose]]
   *
-  * Remarks:
-  *  - Log noise from sshj lib is turned down in logback.xml
-  *  - Implement failure scenarios during upload/download
+  * Possible reasons for behaviour:
+  *  - AkkaVersion = "2.5.30" is rec (we use 2.6.4 here)
+  *  - With SFTP there is a warning at end of Doc page
   *
   * Doc:
   * https://doc.akka.io/docs/alpakka/current/ftp.html
   *
+  * Remark:
+  *  - Log noise from sshj lib is turned down in logback.xml
   */
 object SftpEcho extends App {
   val logger: Logger = LoggerFactory.getLogger(this.getClass)
@@ -71,7 +72,7 @@ object SftpEcho extends App {
   removeAll().onComplete {
     case Success(_) =>
       logger.info("Successfully cleaned...")
-      createFoldersNative()
+      createFolders()
       uploadClient()
       downloadClient()
     case Failure(e) =>
@@ -135,8 +136,8 @@ object SftpEcho extends App {
     val fetchFile: Future[IOResult] = retrieveFromPath(ftpFile.path)
       .runWith(FileIO.toPath(localPath))
     fetchFile.map { ioResult =>
-      //Fails silently
-      //Sftp.move((ftpFile) => s"$sftpDirName/$processedDirName/", sftpSettings)
+      //Does not move the files after 2.0.0-RC1
+      Sftp.move(_ => s"$sftpRootDir/$processedDir/", sftpSettings)
 
       moveFileNative(ftpFile)
       (ftpFile.path, ioResult)
@@ -145,7 +146,7 @@ object SftpEcho extends App {
 
 
 
-  //TODO This hangs after 30 elements
+  //TODO This hangs at the 1st element
   def processAndMove(sourcePath: String,
                      destinationPath: FtpFile => String,
                      sftpSettings: SftpSettings): RunnableGraph[NotUsed] =
@@ -174,7 +175,7 @@ object SftpEcho extends App {
     mkdir(s"/$sftpRootDir", s"/$sftpRootDir/$processedDir")
   }
 
-  //works
+  // works as well but not needed anymore, because createFolders() works now
   private def createFoldersNative() = {
     val sftpClient = newSftpClient()
 
@@ -212,7 +213,7 @@ object SftpEcho extends App {
       //TODO moving/renaming via sshj leads to unknown (resource?)-exception in sshj after around 60 elements
       //sftpClient.rename(ftpFile.path, s"/$sftpRootDir/$processedDir/${ftpFile.name}")
 
-      //rm native works
+      // Brute force: rm native
       sftpClient.rm(ftpFile.path)
     } finally
       sftpClient.close()

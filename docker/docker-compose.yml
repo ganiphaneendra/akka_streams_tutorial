@@ -1,6 +1,9 @@
 version: "3"
 # Start from cmd line: docker-compose up -d
 # Or directly from IntelliJ IDEA
+# Inspiration for more containers:
+# https://github.com/akka/alpakka/blob/8b1b3046d45dddeac2a5d12801d7c34476786a41/docker-compose.yml
+
 services:
   # https://github.com/vromero/activemq-artemis-docker
   artemis:
@@ -25,6 +28,20 @@ services:
     ports:
       - "2222:22"
     command: echouser:password:::echo
+
+  # https://github.com/stilliard/docker-pure-ftpd
+  pure_ftpd:
+    image: stilliard/pure-ftpd:latest
+    ports:
+      - "21000:21"
+      - "30000-30009:30000-30009"
+    environment:
+      - PUBLICHOST=172.22.0.1
+      - FTP_USER_NAME=echouser
+      - FTP_USER_PASS=password
+      - FTP_USER_HOME=/home/echouser
+      - FTP_USER_UID=2000
+      - FTP_USER_GID=2000
 
 networks:
   runtime-net:

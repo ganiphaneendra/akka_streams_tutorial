@@ -4,11 +4,11 @@ version := "1.0"
 
 scalaVersion := "2.12.10"
 
-val akkaVersion = "2.6.1"
+val akkaVersion = "2.6.4"
 val akkaHTTPVersion = "10.1.11"
-val alpakkaVersion = "2.0.0-M2"
-val akkaStreamKafkaVersion = "2.0.1"
-val kafkaVersion = "2.4.0"
+val alpakkaVersion = "2.0.0-RC1"
+val akkaStreamKafkaVersion = "2.0.2"
+val kafkaVersion = "2.4.1"
 val activemqVersion =  "5.15.11"
 val streamzVersion = "0.11-RC1"
 val camelVersion = "2.24.2"
@@ -54,6 +54,14 @@ libraryDependencies ++= Seq(
   "com.twitter" %% "bijection-avro" % "0.9.6",
   "com.github.blemale" %% "scaffeine" % "3.0.0" % "compile",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
+
+//  "org.apache.ftpserver" % "ftpserver-core" % "1.1.1",
+//  "org.apache.ftpserver" % "ftplet-api" % "1.1.1",
+//  "org.apache.ftpserver" % "ftpserver" % "1.1.1",
+
+
+
+
 
   "org.scalatest" %% "scalatest" % "3.0.6" % "test",
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion  % "test",
